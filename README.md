@@ -55,13 +55,21 @@ Assumptions:
 
 Implement the service
 - Need to handle the case where the block requested is bigger than the current row.
-- Need to remove debugging in the TicketServiceImpl class.
-- Need to change the middle out scoring to favor closer rows rather than center.
--- Update the test case scores.
-- Need to implement the standard scorer.
+-- If the block size is larger than the biggest row then using any size blocks to fill the order.
+-- If you get to the end of the venue and you cannot find a block large enough then start again from the beginning
+   using individual seats.  Will most likely need an override for this.
+- Need to implement and test concurrency.
+-- Create a test case that uses multiple threads to create orders at the same time.
+-- Create a test case that uses multiple threats to create and reserve orders at the same time.
+- Create a test that tries to hold and reserve random blocks of tickets.  The run should always eventually end
+  if the logic is implemented correctly.  
+- Implement and test a standard scoring class for contrast.
 - Add logic for people who are looking for single seats to avoid fragging?
+- Provide a visualization.
 
 Implement test cases
+- Implement some sort of performance test that uses a massive venue size.
+- Adjust the memory size that is used when running the tests.
 
 Implement code coverage and inspection
 

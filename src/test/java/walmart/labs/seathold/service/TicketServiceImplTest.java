@@ -12,9 +12,7 @@ import walmart.labs.seathold.models.Venue;
 import java.util.List;
 import java.util.logging.Logger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class TicketServiceImplTest {
     private static final Logger LOG = Logger.getLogger(TicketServiceImplTest.class.getName());
@@ -33,6 +31,38 @@ class TicketServiceImplTest {
         Venue venue = new Venue(8, 4);
         TicketService service = new TicketServiceImpl(venue, scorer);
         //LOG.info(service.toString());
+    }
+
+    @Test
+    void hold_noSeatsAvailable() {
+        final int seats = 0;
+        final int rows = 0;
+        Venue venue = new Venue(seats, rows);
+        TicketService service = new TicketServiceImpl(venue, scorer);
+        SeatHold hold = service.findAndHoldSeats(5, EMAIL1);
+        assertNull(hold);
+    }
+
+    @Test
+    void holdSeats_notEnoughAvailable() {
+        final int seats = 2;
+        final int rows = 2;
+        Venue venue = new Venue(seats, rows);
+        TicketService service = new TicketServiceImpl(venue, scorer);
+        SeatHold hold = service.findAndHoldSeats(5, EMAIL1);
+        assertNull(hold);
+    }
+
+    @Test void holdSeats_largeOrder() {
+        final int seats = 2;
+        final int rows = 10;
+        final int orderSize = 5;
+        Venue venue = new Venue(seats, rows);
+        TicketService service = new TicketServiceImpl(venue, scorer);
+
+        SeatHold hold = service.findAndHoldSeats(orderSize, EMAIL1);
+        assertSeatHold(hold, EMAIL1);
+        assertEquals(orderSize, hold.size());
     }
 
     @Test

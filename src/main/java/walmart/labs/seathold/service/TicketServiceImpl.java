@@ -81,6 +81,82 @@ public class TicketServiceImpl implements TicketService {
     }
 
     /**
+     * Find the best available block from the currently available seats.
+     *
+     * @param numSeats        - the number of seats requested.
+     * @param useAnyBlockSize - if true then the seats do not need to be contiguous or in the same row.
+     * @return the best available SeatBlock containing enough seats to fulfill the order or null if
+     * it cannot be fulfilled.
+     */
+    private SeatBlock findBestAvailableBlocks(int numSeats, boolean useAnyBlockSize) {
+        int seatsRequired = numSeats;
+        List<Seat> heldSeats = new ArrayList<>();
+        List<SeatBlock> usedBlocks = new ArrayList<>();
+
+        for (SeatBlock block : this.seatBlocks) {
+            if (useAnyBlockSize || block.size() >= numSeats) {
+                //
+                usedBlocks.add(block);
+
+                if (block.size() == seatsRequired) {
+                    // The block is an exact match.
+
+                    // Add the entire block to the result.
+                    heldSeats.addAll(block.getSeats());
+                    seatsRequired -= block.size();
+
+                    // There should be no seats required.
+                    assert (seatsRequired == 0);
+
+                    break; // **EXIT**
+                } else if (seatsRequired < block.size()) {
+                    // This block has more seats than is required.
+
+                    // Add the best available portion to the result.
+                    List<SeatBlock> splits = block.split(seatsRequired);
+                    SeatBlock bestAvailableBlock = splits.get(0);
+                    heldSeats.addAll(bestAvailableBlock.getSeats());
+                    seatsRequired -= bestAvailableBlock.size();
+
+                    // There hold should be fulfilled.
+                    assert (seatsRequired == 0);
+
+                    // Add the remaining seats back.
+                    for (int i = 1; i < splits.size(); i++) {
+                        this.seatBlocks.add(splits.get(i));
+                    }
+
+                    break; // **EXIT**
+                } else {
+                    // This block is smaller than the required size
+
+                    heldSeats.addAll(block.getSeats());
+                    seatsRequired -= block.size();
+
+                    // The hold should not be fulfilled.
+                    assert (seatsRequired > 0);
+                }
+            } // else this block is not a match, keep searching.
+        }
+
+        if (usedBlocks.size() > 0) {
+            for (SeatBlock toDelete : usedBlocks) {
+                this.seatBlocks.remove(toDelete);
+            }
+        }
+
+        if (heldSeats.size() == 0) {
+            // There are no blocks that are large enough to fulfill this request and we are not using
+            // individual seats.  This hold order cannot be fulfilled.
+            assert (seatsRequired == numSeats);
+            return null;
+        } else {
+            // Create a new seat hold containing all of the seats combined.
+            return new SeatBlock(heldSeats);
+        }
+    }
+
+    /**
      * Find and hold the best available seats for a customer
      *
      * @param numSeats      the number of seats to find and hold
@@ -90,59 +166,42 @@ public class TicketServiceImpl implements TicketService {
      */
     @Override
     public SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
+        int numSeatsAvailable;
         if (this.seatBlocks.size() == 0) {
             // There are no seats left.
-            LOG.info("There are no seats left");
+            LOG.fine("There are curently not seats available");
+            return null;
+        } else if (numSeats > (numSeatsAvailable = numSeatsAvailable())) {
+            // There are not enough seats available to fulfill this request.
+            String msg = String.format("The requested number of seats: %d is greater than the number of " +
+                    "seats that are currently available: %d", numSeats, numSeatsAvailable);
+            LOG.fine(msg);
             return null;
         } else {
             // TODO: This logic needs to be synchronized to prevent concurrency errors.
 
-            // Find a block with enough seats.
-            SeatBlock bestAvailableBlock = null;
-            for (SeatBlock block : this.seatBlocks) {
-                if (block.size() >= numSeats) {
-                    // This block has enough seats.
-                    bestAvailableBlock = block;
-                    break; // **EXIT**
-                }
+            // - x - There are no seat blocks available.
+            // - x - There are not enough seats available to fulfill the request.
+            // - x - The block size is smaller than a row so iterate through the rows.
+            // - x - The block size is large so iterate through the rows taking any seats available.
+            // - x - The block size is larger than the largest available block so iterate through the
+            //   rows taking any seats available.
+
+            boolean useAnyBlockSize = this.venue.getSeatsPerRow() < numSeats;
+            SeatBlock result = findBestAvailableBlocks(numSeats, useAnyBlockSize);
+            if (!useAnyBlockSize && result == null) {
+                // Check again splitting up the hold request into different rows.
+                // TODO: Shouldn't need to iterate twice.
+                result = findBestAvailableBlocks(numSeats, true);
             }
 
-            if (bestAvailableBlock != null) {
-                // Found a block large enough.
-
-                // Remove the block
-                this.seatBlocks.remove(bestAvailableBlock);
-
-                if (bestAvailableBlock.size() == numSeats) {
-                    // The block is the exact size required.
-                    bestAvailableBlock.setEmail(customerEmail);
-
-                    this.holdBlocks.put(bestAvailableBlock.getId(), bestAvailableBlock);
-
-                    return bestAvailableBlock;
-                } else {
-                    // The block must be split.
-                    List<SeatBlock> splits = bestAvailableBlock.split(numSeats);
-
-                    // Add the remaining seats back.
-                    for (int i = 1; i < splits.size(); i++) {
-                        this.seatBlocks.add(splits.get(i));
-                    }
-
-                    // Return the best portion of the split.
-                    SeatBlock result = splits.get(0);
-                    result.setEmail(customerEmail);
-
-                    this.holdBlocks.put(result.getId(), result);
-
-                    return result;
-                }
-            } else {
-                // TODO: Need to deal with the case where the numSeats is greater than any possible seat block.
-                // No seat block is large enough for this request.
-                LOG.info("No seat block was large enough for size of: " + numSeats);
-                return null;
+            if (result != null) {
+                // Add the hold to the dictionary by its id.
+                this.holdBlocks.put(result.getId(), result);
+                // Associated the customer email with this hold.
+                result.setEmail(customerEmail);
             }
+            return result;
         }
     }
 
