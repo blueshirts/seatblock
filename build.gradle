@@ -11,8 +11,11 @@ buildscript {
 }
 
 apply plugin: 'java'
-apply plugin: 'application'
 apply plugin: 'org.junit.platform.gradle.plugin'
+
+//tasks.withType(JavaCompile) {
+//    options.compilerArgs << '-Xlint:unchecked'
+//}
 
 test {
     maxHeapSize = "1024m"
@@ -24,17 +27,12 @@ junitPlatform {
 
     filters {
 //        includeClassNamePattern '.*MiddleOutScorerTest'
-        includeClassNamePattern '.*TicketServiceImplTest'
+//        includeClassNamePattern '.*TicketServiceImplTest'
+//        includeClassNamePattern '.*TicketServiceImplStressTest'
     }
-
-    // enableStandardTestTask true
-    // selectors (optional)
-    // filters (optional)
 }
 
 sourceCompatibility = 1.8
-
-mainClassName = "walmart.labs.seathold.PriorityTest"
 
 def junitJupiterVersion = '5.0.3'
 
@@ -43,10 +41,8 @@ repositories {
 }
 
 dependencies {
-//    testCompile group: 'junit', name: 'junit', version: '4.12'
     runtime group: 'org.apache.logging.log4j', name: 'log4j-jul', version: '2.10.0'
     runtime group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.10.0'
     testCompile("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testRuntime("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")
-//    testCompile group: 'org.openjdk.jmh', name: 'jmh-core', version: '1.20'
 }

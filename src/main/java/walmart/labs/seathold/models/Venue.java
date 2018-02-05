@@ -18,6 +18,10 @@ public class Venue {
         return rows;
     }
 
+    public int getMaxSeats() {
+        return this.seatsPerRow * rows;
+    }
+
     public String toString() {
         return String.format("Venue(seatsPerRow: %d, rows: %d)", this.seatsPerRow, this.rows);
     }

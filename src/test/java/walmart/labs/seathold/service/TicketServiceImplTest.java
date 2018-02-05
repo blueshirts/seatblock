@@ -1,12 +1,14 @@
 package walmart.labs.seathold.service;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import scoring.MiddleOutScorer;
+import scoring.StandardScorer;
 import walmart.labs.seathold.errors.NoSuchSeatHoldException;
 import walmart.labs.seathold.models.Seat;
 import walmart.labs.seathold.models.SeatHold;
-import scoring.MiddleOutScorer;
 import walmart.labs.seathold.models.Venue;
 
 import java.util.List;
@@ -19,18 +21,28 @@ class TicketServiceImplTest {
 
     private static final String EMAIL1 = "email1@email.com";
 
+    private TicketService service;
+
     private MiddleOutScorer scorer;
 
     @BeforeEach
-    void setUp() {
+    void beforeEach() {
         this.scorer = new MiddleOutScorer();
     }
 
+    @AfterEach
+    void afterEach() {
+        if (this.service != null) {
+            ((TicketServiceImpl)this.service).shutdown();
+        }
+    }
+
     @Test
-    void createService() {
+    void numSeatsAvailable() {
         Venue venue = new Venue(8, 4);
-        TicketService service = new TicketServiceImpl(venue, scorer);
-        //LOG.info(service.toString());
+        this.service = new TicketServiceImpl(venue, scorer);
+        assertNotNull(service);
+        assertEquals(venue.getMaxSeats(), service.numSeatsAvailable());
     }
 
     @Test
@@ -38,7 +50,7 @@ class TicketServiceImplTest {
         final int seats = 0;
         final int rows = 0;
         Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        this.service = new TicketServiceImpl(venue, scorer);
         SeatHold hold = service.findAndHoldSeats(5, EMAIL1);
         assertNull(hold);
     }
@@ -48,28 +60,16 @@ class TicketServiceImplTest {
         final int seats = 2;
         final int rows = 2;
         Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        this.service = new TicketServiceImpl(venue, scorer);
         SeatHold hold = service.findAndHoldSeats(5, EMAIL1);
         assertNull(hold);
-    }
-
-    @Test void holdSeats_largeOrder() {
-        final int seats = 2;
-        final int rows = 10;
-        final int orderSize = 5;
-        Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
-
-        SeatHold hold = service.findAndHoldSeats(orderSize, EMAIL1);
-        assertSeatHold(hold, EMAIL1);
-        assertEquals(orderSize, hold.size());
     }
 
     @Test
     void holdSeats_8x4() {
         final int totalSeats = 32;
         Venue venue = new Venue(8, 4);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        this.service = new TicketServiceImpl(venue, scorer);
 
         // LOG.info(service.toString());
 
@@ -94,16 +94,13 @@ class TicketServiceImplTest {
 
     @Test
     void holdSeats_50x100() {
-        final int seats = 50;
-        final int rows = 100;
-        final int totalSeats = seats * rows;
-        Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        Venue venue = new Venue(50, 100);
+        this.service = new TicketServiceImpl(venue, scorer);
 
         // LOG.info(service.toString());
 
         final int blockSize = 2;
-        for (int seat = 2; seat < totalSeats; seat += blockSize) {
+        for (int seat = 2; seat < venue.getMaxSeats(); seat += blockSize) {
             SeatHold hold = service.findAndHoldSeats(blockSize, EMAIL1);
             assertSeatHold(hold, EMAIL1);
 
@@ -111,7 +108,27 @@ class TicketServiceImplTest {
             // LOG.info(hold.toString());
 
             // LOG.info("Current number of seats available: " + service.numSeatsAvailable());
-            assertEquals(totalSeats - seat, service.numSeatsAvailable());
+            assertEquals(venue.getMaxSeats() - seat, service.numSeatsAvailable());
+        }
+    }
+
+    @Test
+    void holdSeats_50x100_standardScorer() {
+        Venue venue = new Venue(50, 100);
+        this.service = new TicketServiceImpl(venue, new StandardScorer());
+
+        // LOG.info(service.toString());
+
+        final int blockSize = 2;
+        for (int seat = 2; seat < venue.getMaxSeats(); seat += blockSize) {
+            SeatHold hold = service.findAndHoldSeats(blockSize, EMAIL1);
+            assertSeatHold(hold, EMAIL1);
+
+            // LOG.info(service.toString());
+            // LOG.info(hold.toString());
+
+            // LOG.info("Current number of seats available: " + service.numSeatsAvailable());
+            assertEquals(venue.getMaxSeats() - seat, service.numSeatsAvailable());
         }
     }
 
@@ -121,7 +138,7 @@ class TicketServiceImplTest {
         final int rows = 2;
         final int totalSeats = seats * rows;
         Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        this.service = new TicketServiceImpl(venue, scorer);
 
         // Hold the seats.
         SeatHold hold = service.findAndHoldSeats(2, EMAIL1);
@@ -139,36 +156,46 @@ class TicketServiceImplTest {
 
     @Test
     void reserveSeats_all() {
-        final int seats = 50;
-        final int rows = 100;
-        final int totalSeats = seats * rows;
-        Venue venue = new Venue(seats, rows);
-        TicketService service = new TicketServiceImpl(venue, scorer);
+        Venue venue = new Venue(50, 100);
+        this.service = new TicketServiceImpl(venue, scorer);
 
         final int blockSize = 2;
-        for (int seat = 2; seat < totalSeats; seat += blockSize) {
+        for (int seat = 2; seat < venue.getMaxSeats(); seat += blockSize) {
             SeatHold hold = service.findAndHoldSeats(blockSize, EMAIL1);
             assertSeatHold(hold, EMAIL1);
-            assertEquals(totalSeats - seat, service.numSeatsAvailable());
+            assertEquals(venue.getMaxSeats() - seat, service.numSeatsAvailable());
             String confirmation = service.reserveSeats(hold.getId(), EMAIL1);
             assertNotNull(confirmation);
-            assertEquals(totalSeats - seat, service.numSeatsAvailable());
+            assertEquals(venue.getMaxSeats() - seat, service.numSeatsAvailable());
         }
     }
 
     @Test
     void reserveSeats_invalid() {
         try {
-            final int seats = 10;
-            final int rows = 2;
-            Venue venue = new Venue(seats, rows);
-            TicketService service = new TicketServiceImpl(venue, scorer);
+            Venue venue = new Venue(10, 2);
+            this.service = new TicketServiceImpl(venue, scorer);
 
             service.reserveSeats(12345, EMAIL1);
             Assertions.fail("NoSuchSeatHoldException should have been thrown.");
         } catch (NoSuchSeatHoldException e) {
             assertNotNull(e);
         }
+    }
+
+    @Test
+    void holdTimeout() {
+        Venue venue = new Venue(10, 10);
+        this.service = new TicketServiceImpl(venue, this.scorer, 1000);
+        SeatHold hold = this.service.findAndHoldSeats(5, EMAIL1);
+        assertSeatHold(hold, EMAIL1);
+        assertEquals(95, this.service.numSeatsAvailable());
+        try {
+            Thread.sleep(1100);
+        } catch (InterruptedException e) {
+            Assertions.fail(e);
+        }
+        assertEquals(venue.getMaxSeats(), service.numSeatsAvailable());
     }
 
     private void assertSeatHold(SeatHold hold, String email) {

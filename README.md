@@ -33,54 +33,35 @@ Assumptions:
 - A README file should be included in your submission that documents your assumptions and includes instructions for building the solution and executing the tests
 - Implementation mechanisms such as disk-based storage, a REST API, and a front-end GUI are not required
 
-## Software Requirements
+## Configuration
 
-- Keep track of which seats are locked
--- Provide a function to lock a seat
--- Run a background thread that will unlock seats that have been locked for greater than N seconds
-- Implement a best available algorithm
--- Keeps the group available though splits them if necessary
--- Closest to the stage
--- Closest to the center of the venue
--- Avoids leaving orphaned single seats
-- Implement a commit function that will commit and purchase seats for a customer
--- Assumes that seats must be held before they can be purchased
-- Implement a visualization of the current seating state for testing purposes.
+### Scorers
 
-## Additional Assumptions
+There are two seat scoring implementations provided.  They can be substituted when creating a ticket service.
 
-- TBD
+- [MiddleOutScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/scoring/MiddleOutScorer.java) - 
+The middle out scoring implementation favors seating from the inner seats to the outer and from front to back.
+- [StandardScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/scoring/StandardScorer.java) - 
+The standard scoring implementation favors seating from left to right and front to back.
 
-## ToDo
+## Tests
 
-Implement the service
-- Need to handle the case where the block requested is bigger than the current row.
--- If the block size is larger than the biggest row then using any size blocks to fill the order.
--- If you get to the end of the venue and you cannot find a block large enough then start again from the beginning
-   using individual seats.  Will most likely need an override for this.
-- Need to implement and test concurrency.
--- Create a test case that uses multiple threads to create orders at the same time.
--- Create a test case that uses multiple threats to create and reserve orders at the same time.
-- Create a test that tries to hold and reserve random blocks of tickets.  The run should always eventually end
-  if the logic is implemented correctly.  
-- Implement and test a standard scoring class for contrast.
-- Add logic for people who are looking for single seats to avoid fragging?
-- Provide a visualization.
+### Running the Tests
 
-Implement test cases
-- Implement some sort of performance test that uses a massive venue size.
-- Adjust the memory size that is used when running the tests.
+The tests can be running using the following command.
 
-Implement code coverage and inspection
+```bash
+$ ./gradlew --rerun-tasks test
 
-Implement TravisCI integration
-- Add github badging
+```
 
-Documentation
-- Document any assumptions
-- Document how to build the code.
-- Document how to run the tests.
-- Add a top level image.
-- Implement the README
+## Assumptions
+
+The following are current assumptions:
+
+- When holding seats it's assumed that you would like your seats to be contiguous and in the same row.  If you ask for
+more seats than can be found together than the hold is not made and you must retry your attempt with a smaller number
+of seats.
+- By default seat holds expire after 2 minutes.  This value can be configured.
 
 

@@ -4,11 +4,13 @@ public class Seat implements Comparable {
     private int seat;
     private int row;
     private float score;
+    private String code;
 
     public Seat(int seat, int row, float score) {
         this.seat = seat;
         this.row = row;
         this.score = score;
+        this.code = String.format("%d-%d", this.seat, this.row);
     }
 
     @Override
@@ -25,27 +27,29 @@ public class Seat implements Comparable {
         return seat;
     }
 
-    public void setSeat(int seat) {
-        this.seat = seat;
-    }
-
     public int getRow() {
         return row;
-    }
-
-    public void setRow(int row) {
-        this.row = row;
     }
 
     public float getScore() {
         return score;
     }
 
-    public void setScore(int score) {
-        this.score = score;
-    }
-
     public String toString() {
         return String.format("Seat(%d, %d, %.2f)", this.seat, this.row, this.score);
+    }
+
+    @Override
+    public int hashCode() {
+        return code.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof Seat) {
+            return this.code.equals(((Seat) o).code);
+        } else {
+            throw new IllegalArgumentException(String.format("Invalid parameter type: %s", o.getClass().getName()));
+        }
     }
 }

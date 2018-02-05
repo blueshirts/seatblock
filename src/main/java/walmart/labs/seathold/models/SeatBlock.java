@@ -9,6 +9,10 @@ import java.util.logging.Logger;
 
 public class SeatBlock implements Comparable, Iterable, SeatHold {
     /**
+     * An internal sequence.
+     */
+    private static int ID = 0;
+    /**
      * Logging instance.
      */
     private static final Logger LOG = Logger.getLogger(SeatBlock.class.getName());
@@ -16,7 +20,12 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
     /**
      * A unique id for this seat hold.
      */
-    private int id = Math.abs(UUID.randomUUID().hashCode());
+    private int id = ++ID;
+
+    /**
+     * The time this seat block was held.
+     */
+    private long holdTime;
 
     /**
      * The customers email.
@@ -98,6 +107,7 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
      * @since 1.8
      */
     @Override
+    @SuppressWarnings("unchecked")
     public void forEach(Consumer action) {
         this.seats.forEach(action);
     }
@@ -132,26 +142,31 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
         return this.email;
     }
 
-    public void setEmail(String email) {
+    public void hold(String email) {
         this.email = email;
+        this.holdTime = System.currentTimeMillis();
+    }
+
+    public long getHoldTime() {
+        return this.holdTime;
     }
 
     public List<Seat> getSeats() {
         return Arrays.asList(this.seats.toArray(new Seat[this.seats.size()]));
     }
 
-    /**
-     * TODO
-     * @return
-     */
     public int size() {
         return this.seats.size();
     }
 
     /**
-     * TODO
-     * @param size
-     * @return
+     * Split the into a list of blocks.
+     * - If the list is equal to size then return the block.
+     * - If the block is greater than size then return a list of blocks where the first contains the best available
+     * seats of length "size".  The remaining blocks will contain the unused setas.
+     *
+     * @param size - the size of the block neede.d
+     * @return a list of seat blocks where the first is the best available "size" seats.
      */
     public List<SeatBlock> split(int size) {
         if (size > this.seats.size()) {
@@ -229,17 +244,16 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
     }
 
     /**
-     * TODO
-     * @param size
-     * @return
+     * Retrieve the best starting seat index for a new block of "size".
+     *
+     * @param size - the size of the block needed.
+     * @return the starting index of the seat index for a new block of "size".
      */
     private int bestStartingIndex(int size) {
         int bestStartingIndex = 0;
         float maxAverage = 0.0f;
         for (int i = 0; i <= this.seats.size() - size; ++i) {
-//            LOG.fine("Testing index: " + i);
 
-            // TODO: Can this be optimized using pre-computing of values?
             float sum = 0.0f;
             for (int j = i; j < i + size; j++) {
                 sum += this.seats.get(j).getScore();
@@ -259,8 +273,10 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
     }
 
     /**
-     * TODO
-     * @return
+     * A debug string for this object.
+     * Note: This implementation is not intended for production use.
+     *
+     * @return a debug string.
      */
     public String toString() {
         StringBuilder sb = new StringBuilder();

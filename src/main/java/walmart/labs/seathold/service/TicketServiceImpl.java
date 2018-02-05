@@ -1,21 +1,28 @@
 package walmart.labs.seathold.service;
 
-import walmart.labs.seathold.errors.NoSuchSeatHoldException;
-import walmart.labs.seathold.models.SeatHold;
-import walmart.labs.seathold.common.SeatHoldUtils;
 import scoring.Scorer;
+import walmart.labs.seathold.common.SeatHoldUtils;
+import walmart.labs.seathold.errors.NoSuchSeatHoldException;
 import walmart.labs.seathold.models.Seat;
-import walmart.labs.seathold.models.Venue;
 import walmart.labs.seathold.models.SeatBlock;
+import walmart.labs.seathold.models.SeatHold;
+import walmart.labs.seathold.models.Venue;
 
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+
 
 public class TicketServiceImpl implements TicketService {
     /**
      * Logging instance.
      */
     private static final Logger LOG = Logger.getLogger(TicketServiceImpl.class.getName());
+
+    /**
+     * The timeout in milliseconds before a ticket hold will be removed.
+     */
+    private static final long HOLD_TIMEOUT = 120 * 1000;
 
     /**
      * The current venue.
@@ -28,7 +35,12 @@ public class TicketServiceImpl implements TicketService {
     private Scorer scorer;
 
     /**
-     * A collection of available seat blocks.
+     * The hold timeout.
+     */
+    private long holdTimeout;
+
+    /**
+     * A collection of available seat blocks in priority of best available seating.
      */
     private PriorityQueue<SeatBlock> seatBlocks = new PriorityQueue<>();
 
@@ -37,33 +49,83 @@ public class TicketServiceImpl implements TicketService {
      */
     private Map<Integer, SeatBlock> holdBlocks = new HashMap<>();
 
+    /**
+     * A dictionary keyed by hold timeout values to the correpnding hold id.
+     */
+    private SortedMap<Long, Integer> timeoutToHolds = Collections.synchronizedSortedMap(new TreeMap<Long, Integer>());
 
     /**
-     * Construct a ticket service implementation.
+     *
+     */
+    private Thread sweepThread;
+
+
+    /**
+     * Construct a ticket service implementation with the default hold timeout.
      *
      * @param venue  - the venue for this service.
      * @param scorer - the scorer implementation.
      */
     public TicketServiceImpl(Venue venue, Scorer scorer) {
+        this(venue, scorer, HOLD_TIMEOUT);
+    }
+
+    /**
+     * Construct a ticket service implementation.
+     *
+     * @param venue       - the venue for this service.
+     * @param scorer      - the scorer implementation.
+     * @param holdTimeout - the hold timeout value.
+     */
+    public TicketServiceImpl(Venue venue, Scorer scorer, long holdTimeout) {
         this.venue = venue;
         this.scorer = scorer;
+        this.holdTimeout = holdTimeout;
+
+        assert(this.holdTimeout > 0);
 
         final int rowSize = venue.getSeatsPerRow();
         final int rows = venue.getRows();
 
         for (int row = 0; row < rows; row++) {
             List<Seat> seats = new ArrayList<>(rowSize);
-            float sum = 0;
 
             for (int seat = 0; seat < rowSize; seat++) {
                 float score = this.scorer.calculateScore(seat, row, this.venue);
                 score = SeatHoldUtils.round(score);
                 seats.add(new Seat(seat, row, score));
-                sum += score;
             }
 
             this.seatBlocks.add(new SeatBlock(seats));
         }
+
+        this.sweepThread = new Thread(() -> {
+            while (true) {
+                Set<Integer> expiredHolds = new HashSet<>();
+                for (Map.Entry<Long, Integer> entry : this.timeoutToHolds.entrySet()) {
+                    long expireTime = entry.getKey() + this.holdTimeout;
+                    if (System.currentTimeMillis() >= expireTime) {
+                        // This entry has expired.
+                        expiredHolds.add(entry.getValue());
+                    } else {
+                        // No more holds have expired at the current time.
+                        break; // **EXIT**
+                    }
+                }
+
+                // Remove the expired holds.
+                if (expiredHolds.size() > 0) {
+                    this.removeHolds(expiredHolds);
+                }
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    break; // **EXIT**
+                }
+            }
+        });
+        this.sweepThread.start();
     }
 
     /**
@@ -72,7 +134,7 @@ public class TicketServiceImpl implements TicketService {
      * @return the number of tickets available in the venue
      */
     @Override
-    public int numSeatsAvailable() {
+    public synchronized int numSeatsAvailable() {
         int size = 0;
         for (SeatBlock sb : seatBlocks) {
             size += sb.size();
@@ -165,11 +227,11 @@ public class TicketServiceImpl implements TicketService {
      * information
      */
     @Override
-    public SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
+    public synchronized SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
         int numSeatsAvailable;
         if (this.seatBlocks.size() == 0) {
             // There are no seats left.
-            LOG.fine("There are curently not seats available");
+            LOG.fine("There are currently not seats available");
             return null;
         } else if (numSeats > (numSeatsAvailable = numSeatsAvailable())) {
             // There are not enough seats available to fulfill this request.
@@ -178,29 +240,25 @@ public class TicketServiceImpl implements TicketService {
             LOG.fine(msg);
             return null;
         } else {
-            // TODO: This logic needs to be synchronized to prevent concurrency errors.
+            SeatBlock result = findBestAvailableBlocks(numSeats, false);
 
-            // - x - There are no seat blocks available.
-            // - x - There are not enough seats available to fulfill the request.
-            // - x - The block size is smaller than a row so iterate through the rows.
-            // - x - The block size is large so iterate through the rows taking any seats available.
-            // - x - The block size is larger than the largest available block so iterate through the
-            //   rows taking any seats available.
-
-            boolean useAnyBlockSize = this.venue.getSeatsPerRow() < numSeats;
-            SeatBlock result = findBestAvailableBlocks(numSeats, useAnyBlockSize);
-            if (!useAnyBlockSize && result == null) {
-                // Check again splitting up the hold request into different rows.
-                // TODO: Shouldn't need to iterate twice.
-                result = findBestAvailableBlocks(numSeats, true);
-            }
+            // Note: At the current time I am assuming if there is not a contiguous seat block large enough to
+            // fulfill the customers request then we do not create the hold.  The request must be retried using
+            // a smaller block.  In the future we can retry and fulfill the order with seats that are not
+            // contiguous.
+            //if (!useAnyBlockSize && result == null) {
+            //    result = findBestAvailableBlocks(numSeats, true);
+            //}
 
             if (result != null) {
+                // Associated the customer email with this hold.
+                result.hold(customerEmail);
                 // Add the hold to the dictionary by its id.
                 this.holdBlocks.put(result.getId(), result);
-                // Associated the customer email with this hold.
-                result.setEmail(customerEmail);
+                // Store the hold id by creation date.
+                this.timeoutToHolds.put(result.getHoldTime(), result.getId());
             }
+
             return result;
         }
     }
@@ -212,9 +270,10 @@ public class TicketServiceImpl implements TicketService {
      * @param customerEmail the email address of the customer to which the
      *                      seat hold is assigned
      * @return a reservation confirmation code
+     * @throws NoSuchSeatHoldException if a corresponding hold cannot be found.
      */
     @Override
-    public String reserveSeats(int seatHoldId, String customerEmail) {
+    public synchronized String reserveSeats(int seatHoldId, String customerEmail) {
         if (seatHoldId <= 0) {
             // Error, invalid seat id.
             throw new IllegalArgumentException("Seat hold id is not valid: " + seatHoldId);
@@ -228,8 +287,6 @@ public class TicketServiceImpl implements TicketService {
             throw new NoSuchSeatHoldException(msg);
         }
 
-        // TODO: This block must be synched.
-
         // Remove the seat block from the holds.
         SeatBlock hold = this.holdBlocks.remove(seatHoldId);
 
@@ -242,11 +299,35 @@ public class TicketServiceImpl implements TicketService {
         String result = String.valueOf(hold.getId());
 
         // Audit the reservation.
-        LOG.info(String.format("RESERVED: %d seats reserved for customer: %s with confirmation code: %s",
+        LOG.fine(String.format("RESERVED: %d seats reserved for customer: %s with confirmation code: %s",
                 hold.size(), customerEmail, result));
 
         // Return a confirmation code.
         return result;
+    }
+
+    /**
+     * Remove the seat holds by id if they exist.
+     *
+     * @param holdIds - a list of seat hold ids.
+     */
+    private synchronized void removeHolds(Set<Integer> holdIds) {
+        for (int holdId : holdIds) {
+            // Remove the hold if it exists.
+            SeatBlock hold = this.holdBlocks.remove(holdId);
+            if (hold != null) {
+                this.seatBlocks.add(hold);
+            }
+        }
+    }
+
+    public void shutdown() {
+        try {
+            this.sweepThread.interrupt();
+            this.sweepThread.join(1000);
+        } catch (InterruptedException e) {
+            LOG.warning("Exception while shutting down: " + e.toString());
+        }
     }
 
     /**
