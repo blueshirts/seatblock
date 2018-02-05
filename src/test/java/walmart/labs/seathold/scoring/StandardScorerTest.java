@@ -3,8 +3,6 @@ package walmart.labs.seathold.scoring;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import scoring.Scorer;
-import scoring.StandardScorer;
 import walmart.labs.seathold.models.Venue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
