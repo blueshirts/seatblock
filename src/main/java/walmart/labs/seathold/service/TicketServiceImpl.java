@@ -1,6 +1,6 @@
 package walmart.labs.seathold.service;
 
-import scoring.Scorer;
+import walmart.labs.seathold.scoring.Scorer;
 import walmart.labs.seathold.common.SeatHoldUtils;
 import walmart.labs.seathold.errors.NoSuchSeatHoldException;
 import walmart.labs.seathold.models.Seat;
@@ -9,7 +9,6 @@ import walmart.labs.seathold.models.SeatHold;
 import walmart.labs.seathold.models.Venue;
 
 import java.util.*;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 

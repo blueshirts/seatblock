@@ -1,4 +1,4 @@
-package scoring;
+package walmart.labs.seathold.scoring;
 
 import walmart.labs.seathold.common.SeatHoldUtils;
 import walmart.labs.seathold.models.Venue;
