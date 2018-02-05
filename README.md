@@ -2,6 +2,8 @@
 
 > A Java implementation of a simple ticket service that facilitates the discovery, temporary hold, and final reservation of seats within a high-demand performance venue.
 
+[![Build Status][travis-badge]][travis-url]
+
 ```
 ----------[[  STAGE  ]]----------
 ---------------------------------
@@ -63,5 +65,8 @@ The following are current assumptions:
 more seats than can be found together than the hold is not made and you must retry your attempt with a smaller number
 of seats.
 - By default seat holds expire after 2 minutes.  This value can be configured.
+
+[travis-badge]: https://api.travis-ci.org/blueshirts/seatblock.svg
+[travis-url]: https://travis-ci.org/blueshirts/seatblock
 
 
