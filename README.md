@@ -41,10 +41,14 @@ Assumptions:
 
 There are two seat scoring implementations provided.  They can be substituted when creating a ticket service.
 
-- [MiddleOutScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/scoring/MiddleOutScorer.java) - 
+- [MiddleOutScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/walmart/labs/seathold/scoring/MiddleOutScorer.java) - 
 The middle out scoring implementation favors seating from the inner seats to the outer and from front to back.
-- [StandardScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/scoring/StandardScorer.java) - 
+- [StandardScorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/walmart/labs/seathold/scoring/StandardScorer.java) - 
 The standard scoring implementation favors seating from left to right and front to back.
+
+Each scoring implementation implements the Scorer interface.
+
+- [Scorer](https://github.com/blueshirts/seatblock/blob/master/src/main/java/walmart/labs/seathold/scoring/Scorer.java)
 
 ## Tests
 
