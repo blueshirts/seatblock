@@ -35,6 +35,36 @@ Assumptions:
 - A README file should be included in your submission that documents your assumptions and includes instructions for building the solution and executing the tests
 - Implementation mechanisms such as disk-based storage, a REST API, and a front-end GUI are not required
 
+## Design
+
+The following is a brief overview of the design and flow of the implementation.
+
+- Upon creation of a TicketService iterate through all of the rows of the venue creating a SeatBlock for each.
+- Using the supplied Scorer class assign each seat of the SeatBlock instances a score.  The higher the score the better
+the seat is considered.
+- Add the SeatBlock instances to a PriorityQueue ordered by the average score of the seats contained within the block.
+- The current seats available that are not held is the sum of all the seats in the SeatBlock instances.
+- The seat block priority queue contains blocks of seats in best available order.
+- Taking the SeatBlock off the top of the priority queue will give you the best available block of seats that are
+currently available.
+- To hold the best available seats the top item in the priority queue is removed.  This SeatBlock must be split if the
+number of seats required is less than the size of the SeatBlock.
+-- If the best available seat block is the same size being requested to hold then the entire block is added to the
+dictionary of SeatBlock holds.
+-- If the best available seats are in the middle of the SeatBlock it is split into three partitions.  The left and 
+right partitions are returned to the queue of available SeatBlocks while the middle partition is added to dictionary
+of held seat blocks.
+-- If the best available seats are on the left or the right then the SeatBlock is split into two partitions with one
+block being held and the other returned to the queue of available seats.
+- Held seat blocks are tracked in a dictionary keyed by the the seat hold id and the value being the held seat block.
+- Seats can be reserved by supplying a seat hold id and a customer email address.  If the hold exists then the
+corresponding SeatBlock is removed from the dictionary of held seats.
+- A background thread is currently used to cleanup SeatHolds that have expired.  The thread currently continually 
+checks if any seat holds have expired.  If the hold has expired it is added back into the priority queue of 
+available seat blocks.  This design can be improved by maintaining a queue of the SeatHolds in the order that they were
+held.  The hold at the top of the queue will represent the next hold that is set to expire.
+- Due to concurrency concerns many of the functions implemented in the TicketServiceImpl must be synchronized.
+
 ## Configuration
 
 ### Scorers

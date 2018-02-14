@@ -7,6 +7,9 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * The SeatHold is a concrete representation of the SeatHold interface.
+ */
 public class SeatBlock implements Comparable, Iterable, SeatHold {
     /**
      * An internal sequence.
@@ -165,7 +168,7 @@ public class SeatBlock implements Comparable, Iterable, SeatHold {
      * - If the block is greater than size then return a list of blocks where the first contains the best available
      * seats of length "size".  The remaining blocks will contain the unused setas.
      *
-     * @param size - the size of the block neede.d
+     * @param size - the size of the block needed.
      * @return a list of seat blocks where the first is the best available "size" seats.
      */
     public List<SeatBlock> split(int size) {

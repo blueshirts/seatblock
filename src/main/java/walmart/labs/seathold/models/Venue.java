@@ -1,7 +1,10 @@
 package walmart.labs.seathold.models;
 
+/**
+ * The Venue class is an abstraction of venue or hall that has seating.  The Venue describes the details
+ * of the number of seats and the general layout.
+ */
 public class Venue {
-    private String name;
     private int seatsPerRow;
     private int rows;
 

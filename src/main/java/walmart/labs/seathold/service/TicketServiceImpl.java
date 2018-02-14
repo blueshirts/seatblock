@@ -11,7 +11,9 @@ import walmart.labs.seathold.models.Venue;
 import java.util.*;
 import java.util.logging.Logger;
 
-
+/**
+ * The TicketServiceImpl class is a concrete implementation of the TicketService interface.
+ */
 public class TicketServiceImpl implements TicketService {
     /**
      * Logging instance.
@@ -81,7 +83,7 @@ public class TicketServiceImpl implements TicketService {
         this.scorer = scorer;
         this.holdTimeout = holdTimeout;
 
-        assert(this.holdTimeout > 0);
+        assert (this.holdTimeout > 0);
 
         final int rowSize = venue.getSeatsPerRow();
         final int rows = venue.getRows();
@@ -98,6 +100,23 @@ public class TicketServiceImpl implements TicketService {
             this.seatBlocks.add(new SeatBlock(seats));
         }
 
+        /*
+            This following sweep code can most likely be improved so that it does not need to check for expired holds
+            every second.  Instead we should keep track of the date/time of the earliest hold that is set to expire and
+            sleep for that interval.  This will potentially reduce the load on the CPU when no holds need to expire.
+            The downside of this approach is that the program will use additional memory in order to store the queue of
+            seat holds by order of their submission.
+
+            A queue can probably be used to keep track of the holds as they are created.  The top of the queue should
+            always contain the earliest created hold which should be the next to expire.
+
+            There are a few wrinkles in this idea that when the thread wakes the item on the top of the queue may have
+            been reserved and therefore will not need to expire.  Because of this the code can only remove the hold if
+            it sill exists in the holdBlocks.  If the hold is missing then it can be assumed that it has been reserved.
+            In addition, when the thread wakes there may be multiple items on the top of the queue that are required to
+            be expired.  For this the code must iterate through the top of the queue removing items until it finds an
+            item that is not yet expired.  The thread can then sleep until the expiration date/time of this item.
+         */
         this.sweepThread = new Thread(() -> {
             while (true) {
                 Set<Integer> expiredHolds = new HashSet<>();
